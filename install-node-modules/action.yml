@@ -1,5 +1,5 @@
-name: 'node_modules'
-description: 'Installing node_modules. From cache if possible.'
+name: "node_modules"
+description: "Installing node_modules. From cache if possible."
 inputs:
   NPM_TOKEN:
     type: string
@@ -9,7 +9,7 @@ inputs:
     required: true
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - uses: actions/checkout@v3
       with:
@@ -53,7 +53,7 @@ runs:
       run: |
         git checkout .npmrc
 
-    # Runs postinstall script if if cache were found.
+    # Runs postinstall script if cache were found.
     # Reason is that if for instance a new patch-package patch is added,
     # it wont be included in the cached node_modules.
     - name: Postinstall
@@ -61,4 +61,3 @@ runs:
       shell: bash
       run: |
         yarn postinstall
-
