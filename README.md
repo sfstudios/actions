@@ -10,5 +10,5 @@ Installing node modules with yarn (with cache if possible)
 - uses: sfstudios/actions/install-node-modules@master
   with:
     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-    branch: ${{ inputs.branch }}
+    branch: ${{ github.ref }}
 ```
