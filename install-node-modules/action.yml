@@ -16,7 +16,7 @@ runs:
         ref: ${{ inputs.branch }}
 
     - uses: actions/cache@v3
-      if: ${{ github.actor != 'renovate' && github.actor != 'dependabot' }}
+      if: ${{ startsWith(github.ref_name, 'renovate/') == false && startsWith(github.ref_name, 'dependabot/') == false }}
       with:
         path: |
           **/node_modules
