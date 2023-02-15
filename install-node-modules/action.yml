@@ -16,6 +16,7 @@ runs:
         ref: ${{ inputs.branch }}
 
     - uses: actions/cache@v3
+      if: ${{ github.actor != 'renovate' && github.actor != 'dependabot' }}
       with:
         path: |
           **/node_modules
