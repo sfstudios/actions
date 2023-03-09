@@ -31,7 +31,6 @@ runs:
         echo "hit=$cacheHit" >> $GITHUB_OUTPUT
 
     - name: Setup node
-      if: ${{ steps.cache.outputs.hit == 'false' }}
       uses: actions/setup-node@v3
       with:
         node-version-file: .nvmrc
