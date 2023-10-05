@@ -20,7 +20,7 @@ runs:
       with:
         path: |
           **/node_modules
-        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        key: ${{ runner.name }}-yarn-${{ hashFiles('**/yarn.lock') }}
 
     - id: cache
       name: Detect cache hit
