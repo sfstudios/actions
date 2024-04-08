@@ -11,11 +11,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.branch }}
 
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       if: ${{ startsWith(github.ref_name, 'renovate/') == false && startsWith(github.ref_name, 'dependabot/') == false }}
       with:
         path: |
@@ -31,7 +31,7 @@ runs:
         echo "hit=$cacheHit" >> $GITHUB_OUTPUT
 
     - name: Setup node
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version-file: .nvmrc
 
