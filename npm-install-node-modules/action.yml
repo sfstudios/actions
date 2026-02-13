@@ -1,63 +1,19 @@
-name: "node_modules"
-description: "Installing node_modules with NPM. From cache if possible."
+name: "node_modules (npm)"
+description: "Installing node_modules with npm. Wrapper around install-node-modules."
+
 inputs:
   NPM_TOKEN:
-    type: string
+    description: "Token for private GitHub Packages registry"
     required: true
   branch:
-    type: string
+    description: "Git ref to checkout"
     required: true
 
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
+    - uses: sfstudios/actions/install-node-modules@master
       with:
-        ref: ${{ inputs.branch }}
-
-    - uses: actions/cache@v4
-      if: ${{ startsWith(github.ref_name, 'renovate/') == false && startsWith(github.ref_name, 'dependabot/') == false }}
-      with:
-        path: |
-          **/node_modules
-        key: ${{ runner.os }}-${{ runner.arch }}-npm-${{ hashFiles('**/package-lock.json') }}
-
-    - id: cache
-      name: Detect cache hit
-      # ("actions/cache" have its own cache-hit output but it doesn't seem to work)
-      shell: bash
-      run: |
-        cacheHit=$([ -d "node_modules" ] && echo true || echo false)
-        echo "hit=$cacheHit" >> $GITHUB_OUTPUT
-
-    - name: Setup node
-      uses: actions/setup-node@v4
-      with:
-        node-version-file: .nvmrc
-
-    - name: Add npmrc for private repo access
-      if: ${{ steps.cache.outputs.hit == 'false' }}
-      shell: bash
-      run: |
-        echo //npm.pkg.github.com/:_authToken=${{ inputs.NPM_TOKEN }} >> .npmrc
-
-    - name: Run npm install (npm ci)
-      if: ${{ steps.cache.outputs.hit == 'false' }}
-      shell: bash
-      run: |
-        npm ci
-
-    - name: Reset .npmrc
-      if: ${{ steps.cache.outputs.hit == 'false' }}
-      shell: bash
-      run: |
-        git checkout .npmrc
-
-    # Runs postinstall script if cache were found.
-    # Reason is that if for instance a new patch-package patch is added,
-    # it wont be included in the cached node_modules.
-    - name: Postinstall
-      if: ${{ steps.cache.outputs.hit == 'true' }}
-      shell: bash
-      run: |
-        npm run postinstall
+        NPM_TOKEN: ${{ inputs.NPM_TOKEN }}
+        branch: ${{ inputs.branch }}
+        package-manager: npm

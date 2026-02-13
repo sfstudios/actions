@@ -1,63 +1,84 @@
-name: "node_modules"
-description: "Installing node_modules. From cache if possible."
+name: "Install node_modules"
+description: "Auto-detects package manager (npm, yarn, or bun) and installs dependencies with caching."
+
 inputs:
   NPM_TOKEN:
-    type: string
+    description: "Token for private GitHub Packages registry"
     required: true
   branch:
-    type: string
-    required: true
+    description: "Git ref to checkout. Leave empty to skip checkout."
+    required: false
+    default: ""
+  package-manager:
+    description: "Force package manager: npm, yarn, bun, or auto (detect from lock file)"
+    required: false
+    default: "auto"
+  node-version-file:
+    description: "File to read node version from"
+    required: false
+    default: ".nvmrc"
 
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
+    # 1. Conditional checkout (backwards compat: old callers pass branch)
+    - name: Checkout
+      uses: actions/checkout@v6
+      if: ${{ inputs.branch != '' }}
       with:
         ref: ${{ inputs.branch }}
 
-    - uses: actions/cache@v4
-      if: ${{ startsWith(github.ref_name, 'renovate/') == false && startsWith(github.ref_name, 'dependabot/') == false }}
+    # 2. Auto-detect package manager from lock file
+    - name: Detect package manager
+      id: detect
+      shell: bash
+      run: |
+        if [ "${{ inputs.package-manager }}" != "auto" ]; then
+          echo "manager=${{ inputs.package-manager }}" >> $GITHUB_OUTPUT
+        elif [ -f "bun.lockb" ] || [ -f "bun.lock" ]; then
+          echo "manager=bun" >> $GITHUB_OUTPUT
+        elif [ -f "yarn.lock" ]; then
+          echo "manager=yarn" >> $GITHUB_OUTPUT
+        elif [ -f "package-lock.json" ]; then
+          echo "manager=npm" >> $GITHUB_OUTPUT
+        else
+          echo "::error::No lock file found. Set package-manager input or add a lock file."
+          exit 1
+        fi
+
+    # 3a. Setup Node with built-in caching and registry auth (npm or yarn)
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      if: ${{ steps.detect.outputs.manager != 'bun' }}
       with:
-        path: |
-          **/node_modules
-        key: ${{ runner.os }}-${{ runner.arch }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        node-version-file: ${{ inputs.node-version-file }}
+        cache: ${{ steps.detect.outputs.manager }}
+        registry-url: "https://npm.pkg.github.com/"
+        scope: "@sfstudios"
 
-    - id: cache
-      name: Detect cache hit
-      # ("actions/cache" have its own cache-hit output but it doesn't seem to work)
-      shell: bash
-      run: |
-        cacheHit=$([ -d "node_modules" ] && echo true || echo false)
-        echo "hit=$cacheHit" >> $GITHUB_OUTPUT
-
-    - name: Setup node
-      uses: actions/setup-node@v4
+    # 3b. Setup Bun with registry auth
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      if: ${{ steps.detect.outputs.manager == 'bun' }}
       with:
-        node-version-file: .nvmrc
+        registry-url: "https://npm.pkg.github.com/"
+        scope: "@sfstudios"
 
-    - name: Add npmrc for private repo access
-      if: ${{ steps.cache.outputs.hit == 'false' }}
+    # 3c. Setup Node alongside Bun (tools like tsc, eslint may need it)
+    - name: Setup Node (for Bun projects)
+      uses: actions/setup-node@v6
+      if: ${{ steps.detect.outputs.manager == 'bun' }}
+      with:
+        node-version-file: ${{ inputs.node-version-file }}
+
+    # 4. Install dependencies
+    - name: Install dependencies
       shell: bash
       run: |
-        echo //npm.pkg.github.com/:_authToken=${{ inputs.NPM_TOKEN }} >> .npmrc
-
-    - name: Run yarn install
-      if: ${{ steps.cache.outputs.hit == 'false' }}
-      shell: bash
-      run: |
-        yarn install --frozen-lockfile
-
-    - name: Reset .npmrc
-      if: ${{ steps.cache.outputs.hit == 'false' }}
-      shell: bash
-      run: |
-        git checkout .npmrc
-
-    # Runs postinstall script if cache were found.
-    # Reason is that if for instance a new patch-package patch is added,
-    # it wont be included in the cached node_modules.
-    - name: Postinstall
-      if: ${{ steps.cache.outputs.hit == 'true' }}
-      shell: bash
-      run: |
-        yarn postinstall
+        case "${{ steps.detect.outputs.manager }}" in
+          npm)  npm ci ;;
+          yarn) yarn install --frozen-lockfile ;;
+          bun)  bun install --frozen-lockfile ;;
+        esac
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.NPM_TOKEN }}
