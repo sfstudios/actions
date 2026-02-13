@@ -56,13 +56,10 @@ runs:
         registry-url: "https://npm.pkg.github.com/"
         scope: "@sfstudios"
 
-    # 3b. Setup Bun with registry auth
+    # 3b. Setup Bun
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
       if: ${{ steps.detect.outputs.manager == 'bun' }}
-      with:
-        registries: |
-          @sfstudios:https://npm.pkg.github.com/|$NPM_TOKEN
 
     # 3c. Setup Node alongside Bun (tools like tsc, eslint may need it)
     - name: Setup Node (for Bun projects)
@@ -70,6 +67,14 @@ runs:
       if: ${{ steps.detect.outputs.manager == 'bun' }}
       with:
         node-version-file: ${{ inputs.node-version-file }}
+
+    # 3d. Configure registry auth for bun
+    #     Bun reads .npmrc natively. Repos already have the registry URL
+    #     in .npmrc, so we just append the auth token.
+    - name: Configure registry auth (bun)
+      if: ${{ steps.detect.outputs.manager == 'bun' }}
+      shell: bash
+      run: echo "//npm.pkg.github.com/:_authToken=${{ inputs.NPM_TOKEN }}" >> .npmrc
 
     # 4. Install dependencies
     - name: Install dependencies
