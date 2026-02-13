@@ -61,8 +61,8 @@ runs:
       uses: oven-sh/setup-bun@v2
       if: ${{ steps.detect.outputs.manager == 'bun' }}
       with:
-        registry-url: "https://npm.pkg.github.com/"
-        scope: "@sfstudios"
+        registries: |
+          @sfstudios:https://npm.pkg.github.com/|$NPM_TOKEN
 
     # 3c. Setup Node alongside Bun (tools like tsc, eslint may need it)
     - name: Setup Node (for Bun projects)
@@ -82,3 +82,4 @@ runs:
         esac
       env:
         NODE_AUTH_TOKEN: ${{ inputs.NPM_TOKEN }}
+        NPM_TOKEN: ${{ inputs.NPM_TOKEN }}
