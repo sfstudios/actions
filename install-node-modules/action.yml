@@ -17,6 +17,10 @@ inputs:
     description: "File to read node version from"
     required: false
     default: ".nvmrc"
+  bun-version-file:
+    description: "File to read bun version from"
+    required: false
+    default: ".bun-version"
 
 runs:
   using: "composite"
@@ -60,6 +64,8 @@ runs:
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
       if: ${{ steps.detect.outputs.manager == 'bun' }}
+      with:
+        bun-version-file: ${{ inputs.bun-version-file }}
 
     # 3c. Setup Node alongside Bun (tools like tsc, eslint may need it)
     - name: Setup Node (for Bun projects)
