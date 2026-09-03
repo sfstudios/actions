@@ -6,29 +6,34 @@ A collection of reusable GitHub Actions for SF Studios.
 
 Installs Node.js dependencies with automatic package manager detection and caching.
 
-**Supports:** npm, yarn, and bun.
+**Supports:** npm, yarn, pnpm, and bun.
 
 ### How it works
 
 1. Optionally checks out the repository (if `branch` is provided)
 2. Auto-detects the package manager from the lock file:
-   - `bun.lockb` or `bun.lock` → **bun**
-   - `yarn.lock` → **yarn**
-   - `package-lock.json` → **npm**
+    - `bun.lockb` or `bun.lock` → **bun**
+    - `yarn.lock` → **yarn**
+    - `pnpm-lock.yaml` → **pnpm**
+    - `package-lock.json` → **npm**
 3. Resolves the node and bun version files (see below)
-4. Sets up the runtime ([actions/setup-node](https://github.com/actions/setup-node) and/or [oven-sh/setup-bun](https://github.com/oven-sh/setup-bun)) with built-in caching and `@sfstudios` registry auth
-5. Runs the appropriate install command (`npm ci`, `yarn install --frozen-lockfile`, or `bun install --frozen-lockfile`)
+4. Sets up the runtime ([actions/setup-node](https://github.com/actions/setup-node), [pnpm/setup](https://github.com/pnpm/setup), and/or [oven-sh/setup-bun](https://github.com/oven-sh/setup-bun)) with built-in caching and `@sfstudios` registry auth
+5. Runs the appropriate install command (`npm ci`, `yarn install --frozen-lockfile`, `pnpm install --frozen-lockfile`, or `bun install --frozen-lockfile`)
 
 ### Tool versions
 
 Resolved in order, first match wins:
 
-- **node**: `node-version-file` input, `.tool-versions`, `mise.toml`, `.mise.toml`, `.config/mise/config.toml`, `.nvmrc`
+- **node**: `node-version-file` input, `mise.toml`, `.mise.toml`, `.config/mise/config.toml`, `.tool-versions`, `.nvmrc`
 - **bun**: `bun-version-file` input, `.tool-versions`, `.bun-version`
 
-`.tool-versions` counts only if it pins that tool; `mise.toml` is node-only, since
+`.tool-versions` counts only if it pins that tool; Mise config takes precedence.
+`mise.toml` is node-only, since
 setup-bun cannot read it. A bun project with no bun version file fails rather than
 installing latest.
+
+pnpm projects must pin pnpm 11 or newer with `packageManager` or
+`devEngines.packageManager` in `package.json`.
 
 ### Inputs
 
@@ -36,7 +41,7 @@ installing latest.
 | --- | --- | --- | --- |
 | `NPM_TOKEN` | yes | — | Token for private GitHub Packages registry |
 | `branch` | no | `""` | Git ref to checkout. Leave empty to skip checkout. |
-| `package-manager` | no | `"auto"` | Force `npm`, `yarn`, `bun`, or `auto` (detect from lock file) |
+| `package-manager` | no | `"auto"` | Force `npm`, `yarn`, `pnpm`, `bun`, or `auto` (detect from lock file) |
 | `node-version-file` | no | `""` | File to read Node.js version from. Empty to auto-detect. |
 | `bun-version-file` | no | `""` | File to read Bun version from. Empty to auto-detect. |
 
@@ -98,5 +103,5 @@ If you were using `npm-install-node-modules`, **no changes are needed** — the 
 
 - Caching is now handled by `actions/setup-node` built-in cache (global package cache instead of `node_modules`)
 - Registry auth is handled by `actions/setup-node` built-in `registry-url` + `NODE_AUTH_TOKEN` (no more manual `.npmrc` manipulation)
-- All action dependencies updated to latest versions (`checkout@v6`, `setup-node@v6`, `setup-bun@v2`)
+- All action dependencies updated to latest versions (`checkout@v7`, `setup-node@v7`, `pnpm/setup@v2`, `setup-bun@v2`)
 - Bun support added via `oven-sh/setup-bun@v2`
