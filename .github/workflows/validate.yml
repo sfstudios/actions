@@ -13,3 +13,47 @@ jobs:
       - uses: reviewdog/action-actionlint@v1
         with:
           fail_level: error
+
+  install-node-modules:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - fixture: npm-nvmrc
+            node: 22.14.0
+          - fixture: npm-tool-versions
+            node: 24.19.0
+          - fixture: npm-mise-toml
+            node: 20.19.5
+          - fixture: yarn-nvmrc
+            node: 22.21.1
+          - fixture: bun-legacy
+            node: 20.19.5
+            bun: 1.3.13
+          - fixture: bun-tool-versions
+            node: 24.19.0
+            bun: 1.4.0
+    steps:
+      - uses: actions/checkout@v6
+
+      # Version files are resolved against the workspace root.
+      - name: Stage fixture
+        env:
+          FIXTURE: ${{ matrix.fixture }}
+        run: cp -R "test/fixtures/$FIXTURE/." .
+
+      - uses: ./install-node-modules
+        with:
+          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Assert resolved versions
+        env:
+          WANT_NODE: ${{ matrix.node }}
+          WANT_BUN: ${{ matrix.bun }}
+        run: |
+          got=$(node --version)
+          [ "$got" = "v$WANT_NODE" ] || { echo "::error::node $got, want v$WANT_NODE"; exit 1; }
+          [ -n "$WANT_BUN" ] || exit 0
+          got=$(bun --version)
+          [ "$got" = "$WANT_BUN" ] || { echo "::error::bun $got, want $WANT_BUN"; exit 1; }
