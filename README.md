@@ -15,8 +15,20 @@ Installs Node.js dependencies with automatic package manager detection and cachi
    - `bun.lockb` or `bun.lock` → **bun**
    - `yarn.lock` → **yarn**
    - `package-lock.json` → **npm**
-3. Sets up the runtime ([actions/setup-node](https://github.com/actions/setup-node) and/or [oven-sh/setup-bun](https://github.com/oven-sh/setup-bun)) with built-in caching and `@sfstudios` registry auth
-4. Runs the appropriate install command (`npm ci`, `yarn install --frozen-lockfile`, or `bun install --frozen-lockfile`)
+3. Resolves the node and bun version files (see below)
+4. Sets up the runtime ([actions/setup-node](https://github.com/actions/setup-node) and/or [oven-sh/setup-bun](https://github.com/oven-sh/setup-bun)) with built-in caching and `@sfstudios` registry auth
+5. Runs the appropriate install command (`npm ci`, `yarn install --frozen-lockfile`, or `bun install --frozen-lockfile`)
+
+### Tool versions
+
+Resolved in order, first match wins:
+
+- **node**: `node-version-file` input, `.tool-versions`, `mise.toml`, `.mise.toml`, `.config/mise/config.toml`, `.nvmrc`
+- **bun**: `bun-version-file` input, `.tool-versions`, `.bun-version`
+
+`.tool-versions` counts only if it pins that tool; `mise.toml` is node-only, since
+setup-bun cannot read it. A bun project with no bun version file fails rather than
+installing latest.
 
 ### Inputs
 
@@ -25,7 +37,8 @@ Installs Node.js dependencies with automatic package manager detection and cachi
 | `NPM_TOKEN` | yes | — | Token for private GitHub Packages registry |
 | `branch` | no | `""` | Git ref to checkout. Leave empty to skip checkout. |
 | `package-manager` | no | `"auto"` | Force `npm`, `yarn`, `bun`, or `auto` (detect from lock file) |
-| `node-version-file` | no | `".nvmrc"` | File to read Node.js version from |
+| `node-version-file` | no | `""` | File to read Node.js version from. Empty to auto-detect. |
+| `bun-version-file` | no | `""` | File to read Bun version from. Empty to auto-detect. |
 
 ### Usage
 

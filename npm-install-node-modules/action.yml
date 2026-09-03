@@ -8,6 +8,10 @@ inputs:
   branch:
     description: "Git ref to checkout"
     required: true
+  node-version-file:
+    description: "File to read node version from. Leave empty to auto-detect."
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -17,3 +21,4 @@ runs:
         NPM_TOKEN: ${{ inputs.NPM_TOKEN }}
         branch: ${{ inputs.branch }}
         package-manager: npm
+        node-version-file: ${{ inputs.node-version-file }}
