@@ -15,8 +15,26 @@ Installs Node.js dependencies with automatic package manager detection and cachi
    - `bun.lockb` or `bun.lock` → **bun**
    - `yarn.lock` → **yarn**
    - `package-lock.json` → **npm**
-3. Sets up the runtime ([actions/setup-node](https://github.com/actions/setup-node) and/or [oven-sh/setup-bun](https://github.com/oven-sh/setup-bun)) with built-in caching and `@sfstudios` registry auth
-4. Runs the appropriate install command (`npm ci`, `yarn install --frozen-lockfile`, or `bun install --frozen-lockfile`)
+3. Resolves the node and bun version files (see below)
+4. Sets up the runtime ([actions/setup-node](https://github.com/actions/setup-node) and/or [oven-sh/setup-bun](https://github.com/oven-sh/setup-bun)) with built-in caching and `@sfstudios` registry auth
+5. Runs the appropriate install command (`npm ci`, `yarn install --frozen-lockfile`, or `bun install --frozen-lockfile`)
+
+### Tool versions
+
+Version files are resolved in order, first match wins:
+
+- **node**: `node-version-file` input, `.tool-versions` (with a `node` line), `mise.toml`, `.mise.toml`, `.config/mise/config.toml`, `.nvmrc`
+- **bun**: `bun-version-file` input, `.tool-versions` (with a `bun` line), `.bun-version`
+
+A repo holding both `.tool-versions` and `.nvmrc` uses `.tool-versions`. Delete the
+legacy files once you migrate, so the two cannot drift apart.
+
+`.tool-versions` is the only format mise, setup-node and setup-bun all read.
+setup-bun cannot parse `mise.toml`, so `mise.toml` covers node only. mise reads
+`.tool-versions` natively, so no `mise.toml` is needed.
+
+If the package manager is bun and no bun version file resolves, the action fails
+rather than installing the latest bun.
 
 ### Inputs
 
@@ -75,6 +93,17 @@ Existing workflows using this action will continue to work without changes.
     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     branch: ${{ github.ref }}
 ```
+
+#### Migrate to mise
+
+Replace `.nvmrc` and `.bun-version` with a single `.tool-versions`:
+
+```
+node 24.19.0
+bun 1.4.0
+```
+
+No call-site changes are needed.
 
 ## Migration from previous versions
 
