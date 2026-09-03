@@ -14,72 +14,89 @@ inputs:
     required: false
     default: "auto"
   node-version-file:
-    description: "File to read node version from. Empty = auto-detect (.tool-versions, else .nvmrc)"
+    description: "File to read node version from. Leave empty to auto-detect."
     required: false
     default: ""
   bun-version-file:
-    description: "File to read bun version from. Empty = auto-detect (.tool-versions, else .bun-version)"
+    description: "File to read bun version from. Leave empty to auto-detect."
     required: false
     default: ""
 
 runs:
   using: "composite"
   steps:
-    # 1. Conditional checkout (backwards compat: old callers pass branch)
     - name: Checkout
       uses: actions/checkout@v6
       if: ${{ inputs.branch != '' }}
       with:
         ref: ${{ inputs.branch }}
 
-    # 2. Auto-detect package manager from lock file
     - name: Detect package manager
       id: detect
       shell: bash
+      env:
+        FORCED: ${{ inputs.package-manager }}
       run: |
-        if [ "${{ inputs.package-manager }}" != "auto" ]; then
-          echo "manager=${{ inputs.package-manager }}" >> $GITHUB_OUTPUT
-        elif [ -f "bun.lockb" ] || [ -f "bun.lock" ]; then
-          echo "manager=bun" >> $GITHUB_OUTPUT
-        elif [ -f "yarn.lock" ]; then
-          echo "manager=yarn" >> $GITHUB_OUTPUT
-        elif [ -f "package-lock.json" ]; then
-          echo "manager=npm" >> $GITHUB_OUTPUT
+        if [ "$FORCED" != "auto" ]; then
+          manager="$FORCED"
+        elif [ -f bun.lockb ] || [ -f bun.lock ]; then
+          manager=bun
+        elif [ -f yarn.lock ]; then
+          manager=yarn
+        elif [ -f package-lock.json ]; then
+          manager=npm
         else
           echo "::error::No lock file found. Set package-manager input or add a lock file."
           exit 1
         fi
+        echo "manager=$manager" >> "$GITHUB_OUTPUT"
 
-    # 2b. Resolve version files. Prefer .tool-versions (mise/asdf native, and
-    #     read by both setup-node and setup-bun) when it pins the tool; fall
-    #     back to the legacy single-tool files. Explicit inputs always win.
+    # Precedence: input, then mise config, then legacy file. The grep guard is
+    # required because setup-node and setup-bun both fail on a .tool-versions
+    # that does not declare their tool.
     - name: Resolve version files
       id: versions
       shell: bash
+      env:
+        MANAGER: ${{ steps.detect.outputs.manager }}
+        NODE_INPUT: ${{ inputs.node-version-file }}
+        BUN_INPUT: ${{ inputs.bun-version-file }}
       run: |
-        node_file="${{ inputs.node-version-file }}"
-        bun_file="${{ inputs.bun-version-file }}"
+        declares() { [ -f .tool-versions ] && grep -qE "^[[:space:]]*$1[[:space:]]" .tool-versions; }
 
-        if [ -z "$node_file" ]; then
-          if grep -qE '^node[[:space:]]' .tool-versions 2>/dev/null; then
-            node_file=".tool-versions"
-          else
-            node_file=".nvmrc"
-          fi
+        if [ -n "$NODE_INPUT" ]; then
+          node_file="$NODE_INPUT"
+        elif declares 'node(js)?'; then
+          node_file=.tool-versions
+        elif [ -f mise.toml ]; then
+          node_file=mise.toml
+        elif [ -f .mise.toml ]; then
+          node_file=.mise.toml
+        elif [ -f .config/mise/config.toml ]; then
+          node_file=.config/mise/config.toml
+        else
+          node_file=.nvmrc
         fi
+        echo "node-file=$node_file" >> "$GITHUB_OUTPUT"
 
-        if [ -z "$bun_file" ]; then
-          if grep -qE '^bun[[:space:]]' .tool-versions 2>/dev/null; then
-            bun_file=".tool-versions"
-          else
-            bun_file=".bun-version"
-          fi
+        # Bun is gated on the detected manager so yarn/npm repos with a
+        # node-only .tool-versions never reach the error below.
+        [ "$MANAGER" = bun ] || exit 0
+
+        # setup-bun cannot read mise.toml, so .tool-versions is the only file
+        # mise, setup-node and setup-bun all understand.
+        if [ -n "$BUN_INPUT" ]; then
+          bun_file="$BUN_INPUT"
+        elif declares bun; then
+          bun_file=.tool-versions
+        elif [ -f .bun-version ]; then
+          bun_file=.bun-version
+        else
+          echo "::error::No bun version file. Add a bun line to .tool-versions or set bun-version-file."
+          exit 1
         fi
+        echo "bun-file=$bun_file" >> "$GITHUB_OUTPUT"
 
-        echo "node-file=$node_file" >> $GITHUB_OUTPUT
-        echo "bun-file=$bun_file" >> $GITHUB_OUTPUT
-
-    # 3a. Setup Node with built-in caching and registry auth (npm or yarn)
     - name: Setup Node
       uses: actions/setup-node@v6
       if: ${{ steps.detect.outputs.manager != 'bun' }}
@@ -89,37 +106,37 @@ runs:
         registry-url: "https://npm.pkg.github.com/"
         scope: "@sfstudios"
 
-    # 3b. Setup Bun
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
       if: ${{ steps.detect.outputs.manager == 'bun' }}
       with:
         bun-version-file: ${{ steps.versions.outputs.bun-file }}
 
-    # 3c. Setup Node alongside Bun (tools like tsc, eslint may need it)
+    # Tools like tsc and eslint still expect node on PATH.
     - name: Setup Node (for Bun projects)
       uses: actions/setup-node@v6
       if: ${{ steps.detect.outputs.manager == 'bun' }}
       with:
         node-version-file: ${{ steps.versions.outputs.node-file }}
 
-    # 3d. Configure registry auth for bun
-    #     Bun reads .npmrc natively. Repos already have the registry URL
-    #     in .npmrc, so we just append the auth token.
+    # Bun reads .npmrc natively and repos already carry the registry URL there,
+    # so only the auth token is appended.
     - name: Configure registry auth (bun)
       if: ${{ steps.detect.outputs.manager == 'bun' }}
       shell: bash
-      run: echo "//npm.pkg.github.com/:_authToken=${{ inputs.NPM_TOKEN }}" >> .npmrc
+      env:
+        NPM_TOKEN: ${{ inputs.NPM_TOKEN }}
+      run: echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc
 
-    # 4. Install dependencies
     - name: Install dependencies
       shell: bash
+      env:
+        MANAGER: ${{ steps.detect.outputs.manager }}
+        NODE_AUTH_TOKEN: ${{ inputs.NPM_TOKEN }}
+        NPM_TOKEN: ${{ inputs.NPM_TOKEN }}
       run: |
-        case "${{ steps.detect.outputs.manager }}" in
+        case "$MANAGER" in
           npm)  npm ci ;;
           yarn) yarn install --frozen-lockfile ;;
           bun)  bun install --frozen-lockfile ;;
         esac
-      env:
-        NODE_AUTH_TOKEN: ${{ inputs.NPM_TOKEN }}
-        NPM_TOKEN: ${{ inputs.NPM_TOKEN }}
