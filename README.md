@@ -25,7 +25,8 @@ Installs Node.js dependencies with automatic package manager detection and cachi
 | `NPM_TOKEN` | yes | — | Token for private GitHub Packages registry |
 | `branch` | no | `""` | Git ref to checkout. Leave empty to skip checkout. |
 | `package-manager` | no | `"auto"` | Force `npm`, `yarn`, `bun`, or `auto` (detect from lock file) |
-| `node-version-file` | no | `".nvmrc"` | File to read Node.js version from |
+| `node-version-file` | no | `""` | File to read Node.js version from. Empty auto-detects: `.tool-versions` if it pins `node`, else `.nvmrc` |
+| `bun-version-file` | no | `""` | File to read Bun version from. Empty auto-detects: `.tool-versions` if it pins `bun`, else `.bun-version` |
 
 ### Usage
 

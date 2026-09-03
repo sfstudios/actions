@@ -14,13 +14,13 @@ inputs:
     required: false
     default: "auto"
   node-version-file:
-    description: "File to read node version from"
+    description: "File to read node version from. Empty = auto-detect (.tool-versions, else .nvmrc)"
     required: false
-    default: ".nvmrc"
+    default: ""
   bun-version-file:
-    description: "File to read bun version from"
+    description: "File to read bun version from. Empty = auto-detect (.tool-versions, else .bun-version)"
     required: false
-    default: ".bun-version"
+    default: ""
 
 runs:
   using: "composite"
@@ -50,12 +50,41 @@ runs:
           exit 1
         fi
 
+    # 2b. Resolve version files. Prefer .tool-versions (mise/asdf native, and
+    #     read by both setup-node and setup-bun) when it pins the tool; fall
+    #     back to the legacy single-tool files. Explicit inputs always win.
+    - name: Resolve version files
+      id: versions
+      shell: bash
+      run: |
+        node_file="${{ inputs.node-version-file }}"
+        bun_file="${{ inputs.bun-version-file }}"
+
+        if [ -z "$node_file" ]; then
+          if grep -qE '^node[[:space:]]' .tool-versions 2>/dev/null; then
+            node_file=".tool-versions"
+          else
+            node_file=".nvmrc"
+          fi
+        fi
+
+        if [ -z "$bun_file" ]; then
+          if grep -qE '^bun[[:space:]]' .tool-versions 2>/dev/null; then
+            bun_file=".tool-versions"
+          else
+            bun_file=".bun-version"
+          fi
+        fi
+
+        echo "node-file=$node_file" >> $GITHUB_OUTPUT
+        echo "bun-file=$bun_file" >> $GITHUB_OUTPUT
+
     # 3a. Setup Node with built-in caching and registry auth (npm or yarn)
     - name: Setup Node
       uses: actions/setup-node@v6
       if: ${{ steps.detect.outputs.manager != 'bun' }}
       with:
-        node-version-file: ${{ inputs.node-version-file }}
+        node-version-file: ${{ steps.versions.outputs.node-file }}
         cache: ${{ steps.detect.outputs.manager }}
         registry-url: "https://npm.pkg.github.com/"
         scope: "@sfstudios"
@@ -65,14 +94,14 @@ runs:
       uses: oven-sh/setup-bun@v2
       if: ${{ steps.detect.outputs.manager == 'bun' }}
       with:
-        bun-version-file: ${{ inputs.bun-version-file }}
+        bun-version-file: ${{ steps.versions.outputs.bun-file }}
 
     # 3c. Setup Node alongside Bun (tools like tsc, eslint may need it)
     - name: Setup Node (for Bun projects)
       uses: actions/setup-node@v6
       if: ${{ steps.detect.outputs.manager == 'bun' }}
       with:
-        node-version-file: ${{ inputs.node-version-file }}
+        node-version-file: ${{ steps.versions.outputs.node-file }}
 
     # 3d. Configure registry auth for bun
     #     Bun reads .npmrc natively. Repos already have the registry URL
